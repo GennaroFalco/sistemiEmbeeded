@@ -50,7 +50,7 @@ void setup() {
   Serial.begin(115200); 
   analogReadResolution(12);
   myTim = new HardwareTimer(TIM1);
-  myTim->setOverflow(FC, HERTZ_FORMAT);
+  myTim->setOverflow(FC * 50600/51000, HERTZ_FORMAT);
   myTim->attachInterrupt(adc);
   myTim->resume();
 }
@@ -77,8 +77,8 @@ ogni volta che quindi il timer aumenta di uno il conteggio la chiama,questa funz
 
 ``` c++
 void adc() {
-  pReadV[i] = GAIN_V * ((double)analogRead(voltagePin) - OFFSET_V);
-  pReadC[i] = GAIN_C * ((double)analogRead(currentPin) - OFFSET_C);
+  pReadV[i] = analogRead(voltagePin) - OFFSET_V;
+  pReadC[i] = analogRead(currentPin) - OFFSET_C;
   i++;
   if (i >= N_SAMPLE) {
     i = 0;
@@ -99,7 +99,7 @@ void adc() {
 
 ```
 1. Legge i valori analogici da `voltagePin` e `currentPin` tramite `analogRead()`.
-2. Applica la calibrazione moltiplicando per il guadagno e sottraendo l'offset.
+2. Applica la calibrazione sottraendo l'offset.
 3. Salva i campioni nei buffer `pReadV` e `pReadC` e incrementa la variabile `i`
 4. Quando il numero di campioni raccolti raggiunge `N_SAMPLE`:
    - L'indice `i` viene azzerato per ricominciare il campionamento.
@@ -199,7 +199,7 @@ double period(int16_t *pSamples, int len, int *sumNpp) {
   } while (tmp != -1);
 
   if (np == 0) return -1;
-  double npp = sum / np;
+  double npp = (double) sum / np;
   *sumNpp = sum;
   return npp;
 }
@@ -225,27 +225,27 @@ MEDIA(), RMS(), POTENZA()
 Tutte e tre le funzioni implementano il calcolo di media, rms e potenza su un numero di campion pari a `len` parametro di ingresso di tutte e tre. I tre integrali nel tempo discreto si trasformano in semplici sommatorie 
 ```c++
 double rms(int16_t *pSamples, int len) {
-  double q = 0;
+  int64_t q = 0;
   for (int j = 0; j < len; j++) {
     q += pSamples[j] * pSamples[j];
   }
-  return sqrt(q / len);
+  return sqrt((double)q / len);
 }
 
 double media(int16_t *pSamples, int len) {
-  double m = 0;
+  int64_t m = 0;
   for (int j = 0; j < len; j++) {
     m += pSamples[j];
   }
-  return m / len;
+  return (double) m / len;
 }
 
 double potenza(int16_t *vSamples, int16_t *iSamples, int len) {
-  int sum = 0;
+  int64_t sum = 0;
   for (int j = 0; j < len; j++) {
     sum += vSamples[j] * iSamples[j];
   }
-  return (float)sum / len;
+  return (double)sum / len;
 }
 ```
 
@@ -287,9 +287,9 @@ void loop() {
       nppV = FC / 50;
     }
 
-    double Vrms = (rms(pPrintV, measuringSamples)) * 3.3 / 4095;
-    double Irms = (rms(pPrintC, measuringSamples)) * 3.3 / 4095;
-    double P = (potenza(pPrintV, pPrintC, measuringSamples)) * 3.3 / 4095 * 3.3 / 4095;
+    double Vrms = (rms(pPrintV, measuringSamples)) * 3.3 / 4095 * GAIN_V;
+    double Irms = (rms(pPrintC, measuringSamples)) * 3.3 / 4095 * GAIN_I;
+    double P = (potenza(pPrintV, pPrintC, measuringSamples)) * 3.3 / 4095 * 3.3 / 4095 * GAIN_V * GAIN_I;
 
     Serial.println("NPP:");
     Serial.print(nppV);
